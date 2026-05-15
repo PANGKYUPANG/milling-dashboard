@@ -7,7 +7,7 @@ st.set_page_config(layout="wide")
 st.title("월별 예상 가공량 상세 대시보드")
 
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
 client = gspread.authorize(creds)
 sheet = client.open("원맥 가공량 예상").worksheet("원맥 가공량")
 all_data = sheet.get_all_values()
