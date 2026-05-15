@@ -5,7 +5,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import plotly.graph_objects as go
 
 st.set_page_config(layout="wide")
-st.title("월별 예상 가공량 상세 대시보드 v2.0")
+st.title("월별 예상 가공량 상세 대시보드 v2.1")
 
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
@@ -24,23 +24,29 @@ def get_data(p_row, a_row, ly_row, month):
     pl = float(all_data[p_row][col].replace(',', '') or 0)
     ly = float(all_data[ly_row][ly_col].replace(',', '') or 0)
     
+    # 19행(idx 18), 20행(idx 19)에서 실적 데이터 추출
+    r_idx = 18 if p_row == 4 else 19
+    ac_to_date = float(all_data[r_idx][17].replace(',', '') or 0) # R열 (현재실적)
+    rem_est = float(all_data[r_idx][20].replace(',', '') or 0)   # U열 (잔여예상)
+    total_est = float(all_data[r_idx][22].replace(',', '') or 0) # W열 (총예상)
+    
     if month < curr_a4:
         ac = float(all_data[a_row][col].replace(',', '') or 0)
-        est = ac
+        est_rem = 0
+        final_ac = ac
     elif month == curr_a4:
-        r_idx = 18 if p_row == 4 else 19
-        r, s, v = float(all_data[r_idx][17].replace(',','')), float(all_data[r_idx][18].replace(',','')), float(all_data[r_idx][21].replace(',',''))
-        est = round((r / s) * v) if s > 0 else 0
-        ac = r
+        final_ac = total_est
+        ac = ac_to_date
+        est_rem = rem_est
     else:
-        ac, est = 0, 0
+        final_ac, ac, est_rem = 0, 0, 0
         
     p_pl = sum([float(all_data[p_row][17+i].replace(',', '') or 0) for i in range(month-1)]) if month > 1 else 0
     p_ac = sum([float(all_data[a_row][17+i].replace(',', '') or 0) for i in range(month-1)]) if month > 1 else 0
     p_ly = sum([float(all_data[ly_row][33+i].replace(',', '') or 0) for i in range(month-1)]) if month > 1 else 0
     f_pl = sum([float(all_data[p_row][17+i].replace(',', '') or 0) for i in range(month, 12)])
     
-    return {"PL": pl, "AC": ac, "EST": est, "LY": ly, "P_PL": p_pl, "P_AC": p_ac, "P_LY": p_ly, "F_PL": f_pl}
+    return {"PL": pl, "AC": ac, "EST_REM": est_rem, "TOTAL_AC": final_ac, "LY": ly, "P_PL": p_pl, "P_AC": p_ac, "P_LY": p_ly, "F_PL": f_pl}
 
 if target == "생산본부":
     ic = get_data(4, 7, 8, sel_m)
@@ -52,7 +58,7 @@ else:
     d = get_data(5, 8, 8, sel_m)
 
 t_n = target.replace("공장","")
-c_pl, c_ac, c_ly = d['PL'], d['EST'], d['LY']
+c_pl, c_ac, c_ly = d['PL'], d['TOTAL_AC'], d['LY']
 m_pl, m_ac, m_ly = d['P_PL']+c_pl, d['P_AC']+c_ac, d['P_LY']+c_ly
 y_pl, y_ac, y_ly = m_pl+d['F_PL'], m_ac+d['F_PL'], m_ly+d['F_PL']
 
@@ -86,7 +92,7 @@ table_html = f"""
 st.markdown(table_html, unsafe_allow_html=True)
 
 st.write("---")
-st.write(f"### {target} 월별 계획 vs 실적 비교")
+st.write(f"### {target} 월별 계획 vs 실적 비교 (현재월 예상치 포함)")
 
 chart_rows = []
 for m in range(1, 13):
@@ -99,47 +105,42 @@ for m in range(1, 13):
     else:
         val = get_data(5, 8, 8, m)
     
-    chart_rows.append({"월": f"{m:02d}월", "계획": val["PL"], "실적": val["EST"] if m <= curr_a4 else 0})
+    chart_rows.append({"월": f"{m:02d}월", "계획": val["PL"], "실적": val["AC"], "잔여예상": val["EST_REM"]})
 
-df_chart = pd.DataFrame(chart_rows).sort_values("월")
+df_chart = pd.DataFrame(chart_rows)
 
 fig = go.Figure()
 
+# 계획 막대
 fig.add_trace(go.Bar(
-    x=df_chart["월"], 
-    y=df_chart["계획"], 
-    name="계획", 
-    marker_color="#D3D3D3",
-    text=[f"{v:,.0f}" if v > 0 else "" for v in df_chart["계획"]],
-    textposition='outside'
+    x=df_chart["월"], y=df_chart["계획"], name="계획", marker_color="#D3D3D3",
+    offsetgroup=0, text=[f"{v:,.0f}" if v > 0 else "" for v in df_chart["계획"]], textposition='outside'
 ))
 
+# 실적 막대 (현재 실적)
 fig.add_trace(go.Bar(
-    x=df_chart["월"], 
-    y=df_chart["실적"], 
-    name="실적", 
-    marker_color="#1A3E76",
-    text=[f"{v:,.0f}" if v > 0 else "" for v in df_chart["실적"]],
-    textposition='outside'
+    x=df_chart["월"], y=df_chart["실적"], name="실적", marker_color="#1A3E76",
+    offsetgroup=1, text=[f"{v:,.0f}" if v > 0 else "" for v in df_chart["실적"]], textposition='inside'
 ))
 
+# 잔여 예상 막대 (실적 위에 스택)
+fig.add_trace(go.Bar(
+    x=df_chart["월"], y=df_chart["잔여예상"], name="잔여예상", marker_color="#87CEEB",
+    offsetgroup=1, base=df_chart["실적"], text=[f"+{v:,.0f}" if v > 0 else "" for v in df_chart["잔여예상"]], textposition='outside'
+))
+
+# 월별 차이 텍스트 표시
 for i, row in df_chart.iterrows():
-    if row["실적"] > 0:
-        diff = row["실적"] - row["계획"]
-        max_val = max(row["계획"], row["실적"])
+    total_perf = row["실적"] + row["잔여예상"]
+    if total_perf > 0:
+        diff = total_perf - row["계획"]
         fig.add_annotation(
-            x=row["월"],
-            y=max_val,
-            text=f"차이: {diff:,.0f}",
-            showarrow=False,
-            yshift=20,
-            font=dict(color="#000000", size=12, weight="bold")
+            x=row["월"], y=max(row["계획"], total_perf), text=f"차이: {diff:,.0f}",
+            showarrow=False, yshift=40, font=dict(color="red" if diff < 0 else "blue", size=11, weight="bold")
         )
 
 fig.update_layout(
-    barmode='group',
-    bargroupgap=0.0, 
-    margin=dict(t=50, b=30, l=30, r=30),
+    barmode='group', bargroupgap=0.0, margin=dict(t=80, b=30, l=30, r=30),
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
 )
 
