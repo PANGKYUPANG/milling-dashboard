@@ -4,7 +4,7 @@ import pandas as pd
 from oauth2client.service_account import ServiceAccountCredentials
 import plotly.graph_objects as go
 
-# 1. 페이지 설정 및 동적 타이틀
+# 1. 페이지 설정 및 데이터 로드
 st.set_page_config(layout="wide")
 
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -18,10 +18,10 @@ curr_a4 = int(all_data[3][0])
 sel_m = st.sidebar.selectbox("기준 월 선택", range(1, 13), index=curr_a4 - 1)
 target = st.sidebar.radio("조회 대상 선택", ["인천공장", "부산공장", "생산본부"])
 
-# 메인 타이틀 변경 (n월 반영)
+# 동적 타이틀
 st.title(f"2026년도 {sel_m}월 예상 가공량")
 
-# 안전한 숫자 변환 함수 (빈 칸, 공백 에러 방지)
+# 안전한 숫자 변환 함수
 def safe_float(val):
     if not val: return 0.0
     v = str(val).replace(',', '').strip()
@@ -56,12 +56,11 @@ def get_data(p_row, a_row, ly_row, month):
     p_pl = sum([safe_float(all_data[p_row][17+i]) for i in range(month-1)]) if month > 1 else 0.0
     p_ac = sum([safe_float(all_data[a_row][17+i]) for i in range(month-1)]) if month > 1 else 0.0
     p_ly = sum([safe_float(all_data[ly_row][33+i]) for i in range(month-1)]) if month > 1 else 0.0
-    
     f_pl = sum([safe_float(all_data[p_row][17+i]) for i in range(month, 12)])
-    f_ly = sum([safe_float(all_data[ly_row][33+i]) for i in range(month, 12)])
     
-    return {"PL": pl, "AC": ac, "EST_REM": est_rem, "TOTAL_AC": final_ac, "LY": ly, "P_PL": p_pl, "P_AC": p_ac, "P_LY": p_ly, "F_PL": f_pl, "F_LY": f_ly}
+    return {"PL": pl, "AC": ac, "EST_REM": est_rem, "TOTAL_AC": final_ac, "LY": ly, "P_PL": p_pl, "P_AC": p_ac, "P_LY": p_ly, "F_PL": f_pl}
 
+# 데이터 집계
 if target == "생산본부":
     ic = get_data(4, 7, 8, sel_m)
     bs = get_data(5, 8, 8, sel_m)
@@ -74,7 +73,7 @@ else:
 t_n = target.replace("공장","")
 c_pl, c_ac, c_ly = d['PL'], d['TOTAL_AC'], d['LY']
 m_pl, m_ac, m_ly = d['P_PL']+c_pl, d['P_AC']+c_ac, d['P_LY']+c_ly
-y_pl, y_ac, y_ly = m_pl+d['F_PL'], m_ac+d['F_PL'], m_ly+d['F_LY']
+y_pl, y_ac, y_ly = m_pl+d['F_PL'], m_ac+d['F_PL'], m_ly+d['F_PL']
 
 def fmt(n): return f"{n:,.0f}"
 def d1(a, p): return a - p
@@ -131,7 +130,7 @@ fig1.add_trace(go.Bar(x=df_chart["월"], y=df_chart["잔여예상"], name="잔�
 fig1.update_layout(barmode='group', bargroupgap=0.0, margin=dict(t=50, b=30, l=30, r=30), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
 st.plotly_chart(fig1, use_container_width=True)
 
-# 4. 누적 계획량 VS 누적 실적량 비교 그래프 추가
+# 4. 누적 계획량 VS 누적 실적량 비교 그래프 (가로형으로 수정)
 st.write("---")
 st.write(f"### {target} 01~{sel_m:02d}월 누적 계획 vs 실적 비교")
 
@@ -140,24 +139,27 @@ cum_ac = m_ac
 
 fig2 = go.Figure()
 fig2.add_trace(go.Bar(
-    x=["누적 계획", "누적 실적"],
-    y=[cum_pl, cum_ac],
-    text=[fmt(cum_pl), fmt(cum_ac)],
-    textposition='auto',
-    marker_color=["#D3D3D3", "#1A3E76"],
-    width=[0.4, 0.4]
+    y=["누적 실적", "누적 계획"], # Y축이 라벨
+    x=[cum_ac, cum_pl],         # X축이 수치
+    orientation='h',           # 가로형 설정
+    text=[fmt(cum_ac), fmt(cum_pl)],
+    textposition='inside',
+    marker_color=["#1A3E76", "#D3D3D3"],
+    width=0.6
 ))
 
 fig2.update_layout(
-    yaxis_title="가공량",
-    margin=dict(t=50, b=50, l=100, r=100),
-    height=500
+    xaxis_title="가공량",
+    margin=dict(t=50, b=50, l=150, r=100),
+    height=400
 )
 
+# 차이 표시용 어노테이션
 cum_diff = cum_ac - cum_pl
 fig2.add_annotation(
-    x=1, y=cum_ac, text=f"차이: {fmt(cum_diff)} ({d2(cum_ac, cum_pl)})",
-    showarrow=False, yshift=30, font=dict(color="red" if cum_diff < 0 else "blue", size=15, weight="bold")
+    x=max(cum_ac, cum_pl), y=0, # 누적 실적 막대 위치 근처
+    text=f"  차이: {fmt(cum_diff)} ({d2(cum_ac, cum_pl)})",
+    showarrow=False, xanchor="left", font=dict(color="red" if cum_diff < 0 else "blue", size=16, weight="bold")
 )
 
 st.plotly_chart(fig2, use_container_width=True)
