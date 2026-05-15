@@ -126,4 +126,38 @@ df_chart = pd.DataFrame(chart_rows)
 fig1 = go.Figure()
 fig1.add_trace(go.Bar(x=df_chart["월"], y=df_chart["계획"], name="계획", marker_color="#D3D3D3", offsetgroup=0, text=[f"{v:,.0f}" if v > 0 else "" for v in df_chart["계획"]], textposition='outside'))
 fig1.add_trace(go.Bar(x=df_chart["월"], y=df_chart["실적"], name="실적", marker_color="#1A3E76", offsetgroup=1, text=[f"{v:,.0f}" if v > 0 else "" for v in df_chart["실적"]], textposition='inside'))
-fig1.add_trace(go.Bar(x=df_chart["월"], y=df_chart["잔여예상"], name="잔여예상", marker_color="#87CEEB", offsetgroup=1, base=df_chart["실적"], text=[f"+{v:,.0f}" if v > 0 else "" for v in df_chart["잔여예상
+fig1.add_trace(go.Bar(x=df_chart["월"], y=df_chart["잔여예상"], name="잔여예상", marker_color="#87CEEB", offsetgroup=1, base=df_chart["실적"], text=[f"+{v:,.0f}" if v > 0 else "" for v in df_chart["잔여예상"]], textposition='outside'))
+
+fig1.update_layout(barmode='group', bargroupgap=0.0, margin=dict(t=50, b=30, l=30, r=30), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+st.plotly_chart(fig1, use_container_width=True)
+
+# 4. 누적 계획량 VS 누적 실적량 비교 그래프 추가
+st.write("---")
+st.write(f"### {target} 01~{sel_m:02d}월 누적 계획 vs 실적 비교")
+
+cum_pl = m_pl
+cum_ac = m_ac
+
+fig2 = go.Figure()
+fig2.add_trace(go.Bar(
+    x=["누적 계획", "누적 실적"],
+    y=[cum_pl, cum_ac],
+    text=[fmt(cum_pl), fmt(cum_ac)],
+    textposition='auto',
+    marker_color=["#D3D3D3", "#1A3E76"],
+    width=[0.4, 0.4]
+))
+
+fig2.update_layout(
+    yaxis_title="가공량",
+    margin=dict(t=50, b=50, l=100, r=100),
+    height=500
+)
+
+cum_diff = cum_ac - cum_pl
+fig2.add_annotation(
+    x=1, y=cum_ac, text=f"차이: {fmt(cum_diff)} ({d2(cum_ac, cum_pl)})",
+    showarrow=False, yshift=30, font=dict(color="red" if cum_diff < 0 else "blue", size=15, weight="bold")
+)
+
+st.plotly_chart(fig2, use_container_width=True)
