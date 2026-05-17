@@ -79,10 +79,10 @@ def fmt(n): return f"{n:,.0f}"
 def d1(a, p): return a - p
 def d2(a, p): return f"{(a-p)/p*100:.1f}%" if p > 0 else "0.0%"
 
-# 2. 테이블 렌더링
+# 2. 테이블 렌더링 (가로 폭 60%로 수정 완료)
 table_html = f"""
 <style>
-    .report-table {{ width:100%; border-collapse:collapse; font-family:'Malgun Gothic'; font-size:14px; border: 1px solid #1A3E76; }}
+    .report-table {{ width:60%; border-collapse:collapse; font-family:'Malgun Gothic'; font-size:14px; border: 1px solid #1A3E76; }}
     .report-table th {{ background-color:#1A3E76; color:white; border:1px solid #555; padding:10px; font-weight:bold; text-align:center; }}
     .report-table td {{ border:1px solid #555; padding:10px; }}
     .hdr-unit {{ background-color:#D3D3D3; font-weight:bold; text-align:center; }}
@@ -127,7 +127,7 @@ fig1.add_trace(go.Bar(x=df_chart["월"], y=df_chart["계획"], name="계획", ma
 fig1.add_trace(go.Bar(x=df_chart["월"], y=df_chart["실적"], name="실적", marker_color="#1A3E76", offsetgroup=1, text=[f"{v:,.0f}" if v > 0 else "" for v in df_chart["실적"]], textposition='inside'))
 fig1.add_trace(go.Bar(x=df_chart["월"], y=df_chart["잔여예상"], name="잔여예상", marker_color="#87CEEB", offsetgroup=1, base=df_chart["실적"], text=[f"+{v:,.0f}" if v > 0 else "" for v in df_chart["잔여예상"]], textposition='outside'))
 
-# 월별 차이값 어노테이션 복구
+# 월별 차이값 어노테이션
 for i, row in df_chart.iterrows():
     total_perf = row["실적"] + row["잔여예상"]
     if total_perf > 0:
